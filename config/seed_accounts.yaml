@@ -1,0 +1,17 @@
+# 种子账号白名单（手动维护）
+# 格式：platform, account_id, account_name, track
+# account_id 填写抖音号或平台 UID
+
+accounts:
+  - platform: douyin
+    account_id: placeholder_001
+    account_name: 示例知识博主A
+    track: knowledge_course
+
+  - platform: douyin
+    account_id: placeholder_002
+    account_name: 示例知识博主B
+    track: knowledge_course
+
+# 说明：上线前请替换为真实账号 ID
+# 可从飞瓜数据"知识教育"赛道排行榜获取头部账号列表
