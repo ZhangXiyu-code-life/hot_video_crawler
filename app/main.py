@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from sqlalchemy import text
 
 from app.config import get_settings
-from app.db.session import engine
+from app.db.session import AsyncSessionLocal, engine
 from app.utils.logging import configure_logging, get_logger
 
 settings = get_settings()
@@ -31,14 +31,28 @@ async def lifespan(app: FastAPI):
     # 将 redis_client 挂到 app.state，供依赖注入使用
     app.state.redis = redis_client
 
-    # TODO Phase 4: 在此启动 APScheduler
-    # from app.snapshot.scheduler import start_scheduler
-    # scheduler = start_scheduler()
-    # app.state.scheduler = scheduler
+    # 初始化数据源、布隆过滤器、调度器
+    from app.datasource.factory import create_datasource
+    from app.snapshot.scheduler import build_scheduler
+    from app.utils.bloom_filter import BloomFilter
+
+    datasource = create_datasource(redis_client)
+    bloom_filter = BloomFilter(redis_client)
+
+    scheduler = build_scheduler(
+        datasource=datasource,
+        session_factory=AsyncSessionLocal,
+        bloom_filter=bloom_filter,
+    )
+    scheduler.start()
+    app.state.datasource = datasource
+    app.state.scheduler = scheduler
+    logger.info("scheduler started", jobs=len(scheduler.get_jobs()))
 
     yield
 
     # ── 关闭 ─────────────────────────────────────────────────────────────────
+    scheduler.shutdown(wait=False)
     await redis_client.aclose()
     await engine.dispose()
     logger.info("shutdown complete")

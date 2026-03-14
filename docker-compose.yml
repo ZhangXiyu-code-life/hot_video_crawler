@@ -9,11 +9,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hvcpassword}
       POSTGRES_DB: ${POSTGRES_DB:-hot_video_crawler}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hvc}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hvc} -d ${POSTGRES_DB:-hot_video_crawler}"]
       interval: 10s
       timeout: 5s
       retries: 5

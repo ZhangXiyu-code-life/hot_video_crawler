@@ -1,5 +1,3 @@
-import asyncio
-
 import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -7,14 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from app.db.base import Base
 import app.db.models  # noqa: F401 确保所有 Model 被注册
 
-TEST_DATABASE_URL = "postgresql+asyncpg://hvc:hvcpassword@localhost:5432/hot_video_crawler_test"
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
+TEST_DATABASE_URL = "postgresql+asyncpg://hvc:hvcpassword@localhost:5433/hot_video_crawler_test"
 
 
 @pytest_asyncio.fixture(scope="session")

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
         env_file=ROOT_DIR / ".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     # ── 数据库 ────────────────────────────────────────
@@ -26,20 +27,20 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="redis://localhost:6379/0")
 
     # ── 数据源 ────────────────────────────────────────
-    data_source: Literal["feigua", "chanmama", "crawler"] = "feigua"
+    data_source: Literal["mock", "feigua", "chanmama", "crawler"] = "mock"
     feigua_api_key: str = ""
     feigua_base_url: str = "https://api.feigua.cn"
     chanmama_api_key: str = ""
     chanmama_base_url: str = "https://api.chanmama.com"
 
     # ── LLM ──────────────────────────────────────────
-    claude_api_key: str = ""
-    claude_model: str = "claude-haiku-4-5-20251001"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-1.5-flash"
 
     # ── 通知 ──────────────────────────────────────────
     feishu_webhook_url: str = ""
-    email_smtp_host: str = ""
-    email_smtp_port: int = 465
+    email_smtp_host: str = "smtp-mail.outlook.com"
+    email_smtp_port: int = 587
     email_smtp_user: str = ""
     email_smtp_password: str = ""
     email_to: str = ""
