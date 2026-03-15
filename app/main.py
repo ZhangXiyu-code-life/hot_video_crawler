@@ -44,6 +44,16 @@ async def lifespan(app: FastAPI):
         session_factory=AsyncSessionLocal,
         bloom_filter=bloom_filter,
     )
+    # 初始化通知 dispatcher
+    from app.notification.dispatcher import build_dispatcher
+    dispatcher = build_dispatcher()
+    app.state.dispatcher = dispatcher
+
+    scheduler = build_scheduler(
+        datasource=datasource,
+        session_factory=AsyncSessionLocal,
+        bloom_filter=bloom_filter,
+    )
     scheduler.start()
     app.state.datasource = datasource
     app.state.scheduler = scheduler
@@ -78,9 +88,9 @@ async def health_check():
     return {"status": "ok", "env": settings.app_env}
 
 
-# TODO Phase 6: 注册业务路由
-# from app.api.routers import ranking, videos, tracks, admin
-# app.include_router(ranking.router, prefix=settings.api_prefix)
-# app.include_router(videos.router, prefix=settings.api_prefix)
-# app.include_router(tracks.router, prefix=settings.api_prefix)
-# app.include_router(admin.router, prefix=settings.api_prefix)
+from app.api.routers import admin, ranking, tracks, videos
+
+app.include_router(ranking.router, prefix=settings.api_prefix)
+app.include_router(videos.router, prefix=settings.api_prefix)
+app.include_router(tracks.router, prefix=settings.api_prefix)
+app.include_router(admin.router, prefix=settings.api_prefix)

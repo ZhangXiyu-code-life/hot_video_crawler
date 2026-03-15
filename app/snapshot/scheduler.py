@@ -128,14 +128,23 @@ async def _job_snapshot(datasource, session_factory) -> None:
 
 
 async def _job_ranking(period_type: str, session_factory) -> None:
-    """榜单生成 Job：生成指定周期的榜单并触发通知。"""
-    # TODO Phase 5: 实现 RankingGenerator 后取消注释
-    # from app.ranking.generator import RankingGenerator
-    # from app.config import get_settings
-    # settings = get_settings()
-    # tracks = [t["name"] for t in settings.tracks_config.get("tracks", [])]
-    # async with session_factory() as session:
-    #     generator = RankingGenerator(session)
-    #     for track_name in tracks:
-    #         await generator.generate(period_type, track_name)
-    logger.info("job_ranking_placeholder", period_type=period_type)
+    """榜单生成 Job：对所有活跃赛道生成指定周期的榜单。"""
+    from app.config import get_settings
+    from app.ranking.generator import RankingGenerator
+    from app.ranking.periods import PeriodType
+
+    settings = get_settings()
+    tracks = [
+        t["name"]
+        for t in settings.tracks_config.get("tracks", [])
+        if t.get("is_active", True)
+    ]
+
+    async with session_factory() as session:
+        generator = RankingGenerator(session)
+        for track_name in tracks:
+            try:
+                await generator.generate(PeriodType(period_type), track_name)
+                logger.info("job_ranking_done", period=period_type, track=track_name)
+            except Exception as e:
+                logger.error("job_ranking_failed", period=period_type, track=track_name, error=str(e))
