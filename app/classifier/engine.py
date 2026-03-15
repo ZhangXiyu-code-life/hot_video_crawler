@@ -38,27 +38,44 @@ class TrackClassifier:
         """
         对单个视频执行三阶分类，返回最终 TrackResult。
         """
+        best_pre_llm: TrackResult | None = None  # 保留 Stage1/2 最佳结果，LLM 失败时降级使用
+
         # Stage1: 关键词规则
         result = self._keyword.classify(video, track_name)
-        if result and result.confidence >= self._threshold:
-            logger.debug("classified_by_rule", video_id=video.video_id, conf=result.confidence)
-            return result
+        if result:
+            best_pre_llm = result
+            if result.confidence >= self._threshold:
+                logger.debug("classified_by_rule", video_id=video.video_id, conf=result.confidence)
+                return result
 
         # Stage2: 账号标签
         result = self._account.classify(video, track_name)
-        if result and result.confidence >= self._threshold:
-            logger.debug("classified_by_tag", video_id=video.video_id, conf=result.confidence)
-            return result
+        if result:
+            if not best_pre_llm or result.confidence > best_pre_llm.confidence:
+                best_pre_llm = result
+            if result.confidence >= self._threshold:
+                logger.debug("classified_by_tag", video_id=video.video_id, conf=result.confidence)
+                return result
 
         # Stage3: LLM 兜底
         track_cfg = self._get_track_config(track_name)
         prompt_template = track_cfg.get("llm_prompt", "")
         if not prompt_template:
-            # 无 prompt 配置，按前两阶段最佳结果返回
-            return result or TrackResult(label="other", confidence=0.0, stage="rule")
+            return best_pre_llm or TrackResult(label="other", confidence=0.0, stage="rule")
 
         logger.debug("calling_llm_classifier", video_id=video.video_id, track=track_name)
-        return await self._llm.classify(video, track_name, prompt_template)
+        llm_result = await self._llm.classify(video, track_name, prompt_template)
+
+        # LLM 无 Key 或调用失败时（confidence=0），降级使用 Stage1/2 最佳结果
+        if llm_result.confidence == 0.0 and best_pre_llm is not None:
+            logger.debug(
+                "llm_fallback_to_pre_stage",
+                video_id=video.video_id,
+                fallback_conf=best_pre_llm.confidence,
+            )
+            return best_pre_llm
+
+        return llm_result
 
     def _get_track_config(self, track_name: str) -> dict:
         """从 tracks.yaml 中找到指定赛道的配置。"""

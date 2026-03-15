@@ -77,7 +77,8 @@ async def test_fetch_stats_simulates_growth(datasource):
 @pytest.mark.asyncio
 async def test_factory_returns_mock(monkeypatch):
     """验证 DATA_SOURCE=mock 时工厂返回 MockDataSource。"""
-    monkeypatch.setenv("DATA_SOURCE", "mock")
+    # factory.py 在模块级缓存了 settings，需直接 patch 模块属性
+    monkeypatch.setattr("app.datasource.factory.settings.data_source", "mock")
     from app.datasource.factory import create_datasource
     from app.datasource.mock.adapter import MockDataSource
     ds = create_datasource()

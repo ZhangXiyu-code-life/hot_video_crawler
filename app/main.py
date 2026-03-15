@@ -39,11 +39,6 @@ async def lifespan(app: FastAPI):
     datasource = create_datasource(redis_client)
     bloom_filter = BloomFilter(redis_client)
 
-    scheduler = build_scheduler(
-        datasource=datasource,
-        session_factory=AsyncSessionLocal,
-        bloom_filter=bloom_filter,
-    )
     # 初始化通知 dispatcher
     from app.notification.dispatcher import build_dispatcher
     dispatcher = build_dispatcher()
@@ -80,12 +75,54 @@ app = FastAPI(
 
 @app.get("/health", tags=["system"])
 async def health_check():
-    """健康检查：验证 DB + Redis 连通性。"""
-    async with engine.connect() as conn:
-        await conn.execute(text("SELECT 1"))
-    redis_client: aioredis.Redis = app.state.redis
-    await redis_client.ping()
-    return {"status": "ok", "env": settings.app_env}
+    """健康检查：验证 DB + Redis 连通性，返回调度器状态和视频总数。"""
+    from sqlalchemy import select, func as sa_func
+    from app.db.models.video import Video
+
+    # DB 连通性
+    db_ok = False
+    video_count = 0
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        db_ok = True
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(sa_func.count()).select_from(Video))
+            video_count = result.scalar_one()
+    except Exception:
+        pass
+
+    # Redis 连通性
+    redis_ok = False
+    try:
+        redis_client: aioredis.Redis = app.state.redis
+        await redis_client.ping()
+        redis_ok = True
+    except Exception:
+        pass
+
+    # 调度器状态
+    scheduler_jobs = []
+    try:
+        scheduler = app.state.scheduler
+        for job in scheduler.get_jobs():
+            next_run = job.next_run_time
+            scheduler_jobs.append({
+                "id": job.id,
+                "next_run": next_run.isoformat() if next_run else None,
+            })
+    except Exception:
+        pass
+
+    overall = "ok" if (db_ok and redis_ok) else "degraded"
+    return {
+        "status": overall,
+        "env": settings.app_env,
+        "db": "ok" if db_ok else "error",
+        "redis": "ok" if redis_ok else "error",
+        "video_count": video_count,
+        "scheduler_jobs": scheduler_jobs,
+    }
 
 
 from app.api.routers import admin, ranking, tracks, videos

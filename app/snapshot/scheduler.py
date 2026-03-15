@@ -96,6 +96,7 @@ async def _job_discover(datasource, session_factory, bloom_filter) -> None:
     """视频发现 Job：对所有活跃赛道执行发现流程。"""
     from app.config import get_settings
     from app.discovery.engine import VideoDiscoveryEngine
+    from app.utils.job_logger import record_job
 
     settings = get_settings()
     tracks = [
@@ -105,26 +106,28 @@ async def _job_discover(datasource, session_factory, bloom_filter) -> None:
     ]
 
     async with session_factory() as session:
-        engine = VideoDiscoveryEngine(datasource, session, bloom_filter)
-        for track_name in tracks:
-            try:
+        async with record_job(session, "discover") as ctx:
+            engine = VideoDiscoveryEngine(datasource, session, bloom_filter)
+            results = {}
+            for track_name in tracks:
                 saved = await engine.run(track_name)
+                results[track_name] = saved
                 logger.info("job_discover_done", track=track_name, saved=saved)
-            except Exception as e:
-                logger.error("job_discover_failed", track=track_name, error=str(e))
+            ctx["tracks"] = results
+            ctx["total_saved"] = sum(results.values())
 
 
 async def _job_snapshot(datasource, session_factory) -> None:
     """快照采集 Job：对所有追踪视频拍一次快照。"""
     from app.snapshot.collector import SnapshotCollector
+    from app.utils.job_logger import record_job
 
     async with session_factory() as session:
-        collector = SnapshotCollector(datasource, session)
-        try:
+        async with record_job(session, "snapshot") as ctx:
+            collector = SnapshotCollector(datasource, session)
             total = await collector.collect_all()
+            ctx["snapshots"] = total
             logger.info("job_snapshot_done", total=total)
-        except Exception as e:
-            logger.error("job_snapshot_failed", error=str(e))
 
 
 async def _job_ranking(period_type: str, session_factory) -> None:
@@ -132,6 +135,7 @@ async def _job_ranking(period_type: str, session_factory) -> None:
     from app.config import get_settings
     from app.ranking.generator import RankingGenerator
     from app.ranking.periods import PeriodType
+    from app.utils.job_logger import record_job
 
     settings = get_settings()
     tracks = [
@@ -141,10 +145,10 @@ async def _job_ranking(period_type: str, session_factory) -> None:
     ]
 
     async with session_factory() as session:
-        generator = RankingGenerator(session)
-        for track_name in tracks:
-            try:
+        async with record_job(session, f"ranking_{period_type}") as ctx:
+            generator = RankingGenerator(session)
+            for track_name in tracks:
                 await generator.generate(PeriodType(period_type), track_name)
                 logger.info("job_ranking_done", period=period_type, track=track_name)
-            except Exception as e:
-                logger.error("job_ranking_failed", period=period_type, track=track_name, error=str(e))
+            ctx["period"] = period_type
+            ctx["tracks"] = tracks
